@@ -1,0 +1,19 @@
+{
+  "name": "sahayak-lambda",
+  "version": "1.0.0",
+  "description": "Sahayak banking agent Lambda dependencies",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.758.0",
+    "@aws-sdk/client-comprehend": "^3.758.0",
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-lex-runtime-v2": "^3.758.0",
+    "@aws-sdk/client-polly": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-sqs": "^3.758.0",
+    "@aws-sdk/client-ssm": "^3.758.0",
+    "@aws-sdk/client-transcribe": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "@aws-sdk/s3-request-presigner": "^3.758.0"
+  }
+}

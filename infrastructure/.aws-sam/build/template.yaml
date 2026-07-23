@@ -1,0 +1,598 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Sahayak \u2014 AI-Powered Multilingual Conversational Banking Agent\
+  \ Hackathon Prototype on AWS (Mock Data Only)\n"
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        AWS_REGION_NAME:
+          Ref: AWS::Region
+        CUSTOMERS_TABLE:
+          Ref: CustomersTable
+        ACCOUNTS_TABLE:
+          Ref: AccountsTable
+        FDS_TABLE:
+          Ref: FDsTable
+        SESSIONS_TABLE:
+          Ref: SessionsTable
+        TASKS_TABLE:
+          Ref: TellerTasksTable
+        RATES_TABLE:
+          Ref: InterestRatesTable
+        FORMS_BUCKET:
+          Ref: FormsBucket
+        TELLER_QUEUE_URL:
+          Ref: TellerQueue
+        TOKEN_SECRET_PARAM: /sahayak/token-secret
+        BEDROCK_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+        LEX_BOT_ID:
+          Ref: SahayakLexBot
+        LEX_BOT_ALIAS_ID:
+          Ref: SahayakLexBotAlias
+  Api:
+    Cors:
+      AllowMethods: '''GET,POST,PATCH,OPTIONS'''
+      AllowHeaders: '''Content-Type,Authorization'''
+      AllowOrigin: '''*'''
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - prod
+Resources:
+  CustomersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-customers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: customerId
+        AttributeType: S
+      - AttributeName: aadhaarLast4
+        AttributeType: S
+      KeySchema:
+      - AttributeName: customerId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: aadhaarLast4-index
+        KeySchema:
+        - AttributeName: aadhaarLast4
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+  AccountsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-accounts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: accountId
+        AttributeType: S
+      - AttributeName: customerId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: accountId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: customerId-index
+        KeySchema:
+        - AttributeName: customerId
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+  FDsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-fds
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: fdId
+        AttributeType: S
+      - AttributeName: customerId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: fdId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: customerId-index
+        KeySchema:
+        - AttributeName: customerId
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: sessionId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: sessionId
+        KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+  TellerTasksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-teller-tasks
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: taskId
+        AttributeType: S
+      - AttributeName: status
+        AttributeType: S
+      - AttributeName: createdAt
+        AttributeType: N
+      KeySchema:
+      - AttributeName: taskId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: status-createdAt-index
+        KeySchema:
+        - AttributeName: status
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+  InterestRatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sahayak-interest-rates
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: rateId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: rateId
+        KeyType: HASH
+  FormsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: sahayak-forms-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+        - AllowedMethods:
+          - GET
+          - HEAD
+          AllowedOrigins:
+          - '*'
+          AllowedHeaders:
+          - '*'
+          MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+        - Id: DeleteOldForms
+          Status: Enabled
+          ExpirationInDays: 7
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: sahayak-audio-${AWS::AccountId}
+      LifecycleConfiguration:
+        Rules:
+        - Id: DeleteOldAudio
+          Status: Enabled
+          ExpirationInDays: 1
+  TellerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sahayak-teller-tasks.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      MessageRetentionPeriod: 86400
+      VisibilityTimeout: 120
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sahayak-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: SahayakLambdaPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            Resource:
+            - Fn::GetAtt:
+              - CustomersTable
+              - Arn
+            - Fn::Sub: ${CustomersTable.Arn}/index/*
+            - Fn::GetAtt:
+              - AccountsTable
+              - Arn
+            - Fn::Sub: ${AccountsTable.Arn}/index/*
+            - Fn::GetAtt:
+              - FDsTable
+              - Arn
+            - Fn::Sub: ${FDsTable.Arn}/index/*
+            - Fn::GetAtt:
+              - SessionsTable
+              - Arn
+            - Fn::GetAtt:
+              - TellerTasksTable
+              - Arn
+            - Fn::Sub: ${TellerTasksTable.Arn}/index/*
+            - Fn::GetAtt:
+              - InterestRatesTable
+              - Arn
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+            Resource:
+            - Fn::Sub: ${FormsBucket.Arn}/*
+            - Fn::Sub: ${AudioBucket.Arn}/*
+          - Effect: Allow
+            Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            Resource:
+              Fn::GetAtt:
+              - TellerQueue
+              - Arn
+          - Effect: Allow
+            Action:
+            - bedrock:InvokeModel
+            - bedrock:InvokeModelWithResponseStream
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - comprehend:DetectDominantLanguage
+            - comprehend:DetectSentiment
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - polly:SynthesizeSpeech
+            - polly:DescribeVoices
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - lex:RecognizeText
+            - lex:RecognizeUtterance
+            - lex:PutSession
+            - lex:GetSession
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - transcribe:StartTranscriptionJob
+            - transcribe:GetTranscriptionJob
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:GetParameter
+            Resource:
+              Fn::Sub: arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sahayak/*
+  ConversationOrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-conversation-orchestrator
+      Handler: index.handler
+      CodeUri: ConversationOrchestratorFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Description: "Main Sahayak conversation loop \u2014 STT, NLU, dialog, TTS"
+      Events:
+        ConversationPost:
+          Type: Api
+          Properties:
+            Path: /converse
+            Method: post
+    Metadata:
+      SamResourceId: ConversationOrchestratorFunction
+  AuthVerifyIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-auth-verify-id
+      Handler: index.handler
+      CodeUri: AuthVerifyIdFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        VerifyId:
+          Type: Api
+          Properties:
+            Path: /auth/verify-id
+            Method: post
+    Metadata:
+      SamResourceId: AuthVerifyIdFunction
+  AuthVerifyOtpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-auth-verify-otp
+      Handler: index.handler
+      CodeUri: AuthVerifyOtpFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        VerifyOtp:
+          Type: Api
+          Properties:
+            Path: /auth/verify-otp
+            Method: post
+    Metadata:
+      SamResourceId: AuthVerifyOtpFunction
+  BalanceFlowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-balance-flow
+      Handler: index.handler
+      CodeUri: BalanceFlowFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        GetAccounts:
+          Type: Api
+          Properties:
+            Path: /accounts/{customerId}
+            Method: get
+    Metadata:
+      SamResourceId: BalanceFlowFunction
+  FdFlowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-fd-flow
+      Handler: index.handler
+      CodeUri: FdFlowFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        FdQuote:
+          Type: Api
+          Properties:
+            Path: /fd/quote
+            Method: post
+        FdBook:
+          Type: Api
+          Properties:
+            Path: /fd/book
+            Method: post
+        FdList:
+          Type: Api
+          Properties:
+            Path: /fd/{customerId}
+            Method: get
+    Metadata:
+      SamResourceId: FdFlowFunction
+  WithdrawalFlowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-withdrawal-flow
+      Handler: index.handler
+      CodeUri: WithdrawalFlowFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        WithdrawalExecute:
+          Type: Api
+          Properties:
+            Path: /withdrawal/execute
+            Method: post
+    Metadata:
+      SamResourceId: WithdrawalFlowFunction
+  FormGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-form-generator
+      Handler: index.handler
+      CodeUri: FormGeneratorFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        GenerateForm:
+          Type: Api
+          Properties:
+            Path: /forms/generate
+            Method: post
+    Metadata:
+      SamResourceId: FormGeneratorFunction
+  TellerDashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sahayak-teller-dashboard
+      Handler: index.handler
+      CodeUri: TellerDashboardFunction
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      Events:
+        GetTasks:
+          Type: Api
+          Properties:
+            Path: /dashboard/tasks
+            Method: get
+        UpdateTask:
+          Type: Api
+          Properties:
+            Path: /dashboard/tasks/{taskId}
+            Method: patch
+    Metadata:
+      SamResourceId: TellerDashboardFunction
+  SahayakLexBot:
+    Type: AWS::Lex::Bot
+    Properties:
+      Name: SahayakBot
+      Description: Sahayak banking voice agent intent recognizer
+      RoleArn:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      DataPrivacy:
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      BotLocales:
+      - LocaleId: en_IN
+        Description: English (India)
+        NluConfidenceThreshold: 0.4
+        Intents:
+        - Name: CheckBalance
+          Description: Customer wants to check account balance
+          SampleUtterances:
+          - Utterance: What is my balance
+          - Utterance: Check my account balance
+          - Utterance: How much money do I have
+          - Utterance: Show me my account
+        - Name: OpenFD
+          Description: Customer wants to open a fixed deposit
+          SampleUtterances:
+          - Utterance: Open a fixed deposit
+          - Utterance: I want to create an FD
+          - Utterance: Book a fixed deposit
+          - Utterance: Open FD for {Amount} rupees
+          Slots:
+          - Name: Amount
+            SlotTypeName: AMAZON.Number
+            ValueElicitationSetting:
+              SlotConstraint: Required
+              PromptSpecification:
+                MessageGroupsList:
+                - Message:
+                    PlainTextMessage:
+                      Value: How much would you like to deposit?
+                MaxRetries: 2
+          - Name: Tenure
+            SlotTypeName: AMAZON.Number
+            ValueElicitationSetting:
+              SlotConstraint: Required
+              PromptSpecification:
+                MessageGroupsList:
+                - Message:
+                    PlainTextMessage:
+                      Value: For how many months?
+                MaxRetries: 2
+        - Name: WithdrawCash
+          Description: Customer wants to withdraw cash
+          SampleUtterances:
+          - Utterance: I want to withdraw cash
+          - Utterance: Withdraw {Amount} rupees
+          - Utterance: Take out money from my account
+          Slots:
+          - Name: Amount
+            SlotTypeName: AMAZON.Number
+            ValueElicitationSetting:
+              SlotConstraint: Required
+              PromptSpecification:
+                MessageGroupsList:
+                - Message:
+                    PlainTextMessage:
+                      Value: How much would you like to withdraw?
+                MaxRetries: 2
+        - Name: FallbackIntent
+          Description: Fallback for unrecognized inputs
+          ParentIntentSignature: AMAZON.FallbackIntent
+      - LocaleId: hi_IN
+        Description: Hindi (India)
+        NluConfidenceThreshold: 0.4
+        Intents:
+        - Name: CheckBalance
+          SampleUtterances:
+          - Utterance: "\u092E\u0947\u0930\u093E \u092C\u0948\u0932\u0947\u0902\u0938\
+              \ \u092C\u0924\u093E\u0913"
+          - Utterance: "\u0916\u093E\u0924\u0947 \u092E\u0947\u0902 \u0915\u093F\u0924\
+              \u0928\u093E \u092A\u0948\u0938\u093E \u0939\u0948"
+          - Utterance: "\u092C\u0948\u0932\u0947\u0902\u0938 \u091A\u0947\u0915 \u0915\
+              \u0930\u094B"
+        - Name: OpenFD
+          SampleUtterances:
+          - Utterance: "FD \u0916\u094B\u0932\u0928\u0940 \u0939\u0948"
+          - Utterance: "Fixed Deposit \u0915\u0930\u0928\u0940 \u0939\u0948"
+          - Utterance: "\u092E\u0941\u091D\u0947 FD \u0916\u094B\u0932\u0928\u0940\
+              \ \u0939\u0948"
+        - Name: WithdrawCash
+          SampleUtterances:
+          - Utterance: "\u092A\u0948\u0938\u0947 \u0928\u093F\u0915\u093E\u0932\u0928\
+              \u0947 \u0939\u0948\u0902"
+          - Utterance: "\u0928\u0915\u0926 \u091A\u093E\u0939\u093F\u090F"
+          - Utterance: "\u092A\u0948\u0938\u0947 \u0928\u093F\u0915\u093E\u0932\u094B"
+        - Name: FallbackIntent
+          ParentIntentSignature: AMAZON.FallbackIntent
+      AutoBuildBotLocales: true
+  SahayakLexBotVersion:
+    Type: AWS::Lex::BotVersion
+    Properties:
+      BotId:
+        Ref: SahayakLexBot
+      BotVersionLocaleSpecification:
+      - LocaleId: en_IN
+        BotVersionLocaleDetails:
+          SourceBotVersion: DRAFT
+      - LocaleId: hi_IN
+        BotVersionLocaleDetails:
+          SourceBotVersion: DRAFT
+  SahayakLexBotAlias:
+    Type: AWS::Lex::BotAlias
+    Properties:
+      BotId:
+        Ref: SahayakLexBot
+      BotAliasName: SahayakDemoAlias
+      BotVersion:
+        Fn::GetAtt:
+        - SahayakLexBotVersion
+        - BotVersion
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
+    Export:
+      Name: SahayakApiEndpoint
+  ConversationOrchestratorArn:
+    Value:
+      Fn::GetAtt:
+      - ConversationOrchestratorFunction
+      - Arn
+  FormsBucketName:
+    Value:
+      Ref: FormsBucket
+  TellerQueueUrl:
+    Value:
+      Ref: TellerQueue
+  CustomersTableName:
+    Value:
+      Ref: CustomersTable
