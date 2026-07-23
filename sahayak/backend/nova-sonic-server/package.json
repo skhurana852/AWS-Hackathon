@@ -1,0 +1,31 @@
+{
+  "name": "sahayak-nova-sonic-server",
+  "version": "1.0.0",
+  "description": "Sahayak AI Banking Agent - Nova Sonic Speech-to-Speech Server",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "cli": "ts-node src/test-cli.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.785",
+    "@aws-sdk/credential-providers": "^3.782",
+    "@smithy/node-http-handler": "^4.0.4",
+    "@smithy/types": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "^4.8.1",
+    "twilio": "^5.13.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.9",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  }
+}

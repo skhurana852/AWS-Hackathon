@@ -1,0 +1,28 @@
+[
+  {
+    "fdId": "FD001",
+    "customerId": "C1001",
+    "accountId": "ACC001",
+    "principal": 50000,
+    "tenureMonths": 12,
+    "rate": 6.5,
+    "maturityAmount": 53250,
+    "startDate": "2026-01-10",
+    "maturityDate": "2027-01-10",
+    "status": "ACTIVE",
+    "fdRefNo": "FDREF20260110001"
+  },
+  {
+    "fdId": "FD002",
+    "customerId": "C1003",
+    "accountId": "ACC004",
+    "principal": 100000,
+    "tenureMonths": 24,
+    "rate": 7.0,
+    "maturityAmount": 114900,
+    "startDate": "2025-06-01",
+    "maturityDate": "2027-06-01",
+    "status": "ACTIVE",
+    "fdRefNo": "FDREF20250601002"
+  }
+]

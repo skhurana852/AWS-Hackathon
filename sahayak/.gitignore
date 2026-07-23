@@ -1,0 +1,17 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Generated FD / withdrawal forms
+backend/nova-sonic-server/generated-forms/
+
+# OS / editor
+.DS_Store
+*.log

@@ -1,0 +1,57 @@
+[
+  {
+    "accountId": "ACC001",
+    "customerId": "C1001",
+    "type": "SAVINGS",
+    "balance": 85000.00,
+    "currency": "INR",
+    "ifsc": "DEMO0001234",
+    "branch": "Main Branch, Delhi",
+    "lastTxnDate": "2026-07-18",
+    "status": "ACTIVE"
+  },
+  {
+    "accountId": "ACC002",
+    "customerId": "C1001",
+    "type": "CURRENT",
+    "balance": 250000.00,
+    "currency": "INR",
+    "ifsc": "DEMO0001234",
+    "branch": "Main Branch, Delhi",
+    "lastTxnDate": "2026-07-20",
+    "status": "ACTIVE"
+  },
+  {
+    "accountId": "ACC003",
+    "customerId": "C1002",
+    "type": "SAVINGS",
+    "balance": 32500.50,
+    "currency": "INR",
+    "ifsc": "DEMO0001235",
+    "branch": "Connaught Place, Delhi",
+    "lastTxnDate": "2026-07-15",
+    "status": "ACTIVE"
+  },
+  {
+    "accountId": "ACC004",
+    "customerId": "C1003",
+    "type": "SAVINGS",
+    "balance": 120000.00,
+    "currency": "INR",
+    "ifsc": "DEMO0001236",
+    "branch": "Lajpat Nagar, Delhi",
+    "lastTxnDate": "2026-07-19",
+    "status": "ACTIVE"
+  },
+  {
+    "accountId": "ACC005",
+    "customerId": "C1003",
+    "type": "RECURRING_DEPOSIT",
+    "balance": 45000.00,
+    "currency": "INR",
+    "ifsc": "DEMO0001236",
+    "branch": "Lajpat Nagar, Delhi",
+    "lastTxnDate": "2026-07-01",
+    "status": "ACTIVE"
+  }
+]
