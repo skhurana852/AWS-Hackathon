@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sahayak — AI Banking Agent</title>
+    <script>
+        // Set theme before first paint to avoid a flash of the wrong theme.
+        (function () {
+            try {
+                var saved = localStorage.getItem('sahayakTheme');
+                var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="call-timer" id="call-timer">
+        <span class="call-timer-dot"></span>
+        <span id="call-timer-value">00:00</span>
+    </div>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div>
+                    <h1 class="brand">
+                        <svg class="brand-icon" viewBox="0 0 48 48" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="brandGradIndex" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="var(--accent-1)" />
+                                    <stop offset="100%" stop-color="var(--accent-2)" />
+                                </linearGradient>
+                            </defs>
+                            <circle cx="24" cy="24" r="22" fill="url(#brandGradIndex)" />
+                            <path class="lamp-shape" d="M15 28c-5-1-7-5-5-9 2 3 5 6 8 7z" />
+                            <ellipse class="lamp-shape" cx="23" cy="28" rx="8" ry="5.2" />
+                            <path class="lamp-shape" d="M17 23q6-8 12 0z" />
+                            <circle class="lamp-shape" cx="23" cy="14" r="1.8" />
+                            <circle class="lamp-ring" cx="32" cy="26" r="3.2" />
+                            <path class="sparkle sparkle-1" d="M0 -6c1 4 2 5 6 6-4 1-5 2-6 6-1-4-2-5-6-6 4-1 5-2 6-6z" transform="translate(36,13) scale(0.55)" />
+                            <path class="sparkle sparkle-2" d="M0 -6c1 4 2 5 6 6-4 1-5 2-6 6-1-4-2-5-6-6 4-1 5-2 6-6z" transform="translate(39,21) scale(0.35)" />
+                        </svg>
+                        <span class="brand-text">Bank Genie</span>
+                    </h1>
+                    <p class="powered-by">Powered by <span>Amazon Nova Sonic</span></p>
+                </div>
+                <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme">
+                    <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zm0-5a1 1 0 011 1v2a1 1 0 11-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zM3 11a1 1 0 000 2h2a1 1 0 100-2H3zm18 0a1 1 0 000 2h2a1 1 0 100-2h-2zM4.22 4.22a1 1 0 011.42 0L7.05 5.64a1 1 0 11-1.42 1.42L4.22 5.64a1 1 0 010-1.42zm14.14 14.14a1 1 0 011.42 0l1.41 1.42a1 1 0 11-1.41 1.41l-1.42-1.41a1 1 0 010-1.42zM4.22 19.78a1 1 0 010-1.42l1.41-1.41a1 1 0 111.42 1.41l-1.42 1.42a1 1 0 01-1.41 0zM18.36 5.64a1 1 0 010-1.42l1.42-1.41a1 1 0 111.41 1.41l-1.41 1.42a1 1 0 01-1.42 0z"/></svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-area" id="chat-area">
+            <div class="message agent welcome-msg intro-hidden" id="welcome-msg">
+                <div class="label">Agent</div>
+                <span class="text-body">Welcome! I'm Bank Genie, your AI banking assistant. Tap the microphone and I can help you check your balance, withdraw money, or open a fixed deposit.</span>
+             </div>
+        </div>
+
+        <div class="controls controls-intro" id="controls">
+            <div class="waveform intro-hidden" id="waveform">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+
+            <div class="mic-wrap intro-drop" id="mic-wrap">
+                <button class="mic-btn" id="mic-btn" disabled title="Start conversation">
+                    <svg class="mic-icon" viewBox="0 0 24 24">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                    <svg class="end-call-icon" viewBox="0 0 24 24">
+                        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08C.11 12.9 0 12.65 0 12.37c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.68-1.36-2.66-1.85-.33-.16-.56-.51-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="status-text intro-hidden" id="status-text">Tap microphone to connect</div>
+
+            <div class="connection-indicator intro-hidden" id="connection-indicator">
+                <div class="connection-dot" id="connection-dot"></div>
+                <span id="connection-label">Disconnected</span>
+            </div>
+
+            <form class="chat-input intro-hidden" id="chat-input" autocomplete="off">
+                <input type="text" class="chat-text" id="chat-text" placeholder="Type a message…" disabled />
+                <button type="submit" class="chat-send" id="chat-send" disabled title="Send message">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Socket.IO Client (served by the Express server) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

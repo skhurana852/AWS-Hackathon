@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahayak — Teller Dashboard</title>
+  <script>
+    // Set theme before first paint to avoid a flash of the wrong theme.
+    (function () {
+        try {
+            var saved = localStorage.getItem('sahayakTheme');
+            var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Theme tokens: dark (default) ─────────────────────────────────── */
+    :root {
+      --bg-grad-1: #0a0f1e; --bg-grad-2: #0f1829; --bg-grad-3: #0f3460;
+      --text-primary: #eef1fb; --text-secondary: #9aa0c3; --text-muted: #6b7094;
+      --accent-1: #14b8a6; --accent-2: #6366f1;
+      --accent-1-rgb: 20, 184, 166; --accent-2-rgb: 99, 102, 241;
+      --success: #22c55e; --success-rgb: 34, 197, 94;
+      --error: #ef4444; --error-rgb: 239, 68, 68;
+      --warning: #f59e0b; --warning-rgb: 245, 158, 11;
+      --surface: rgba(255,255,255,.05); --surface-strong: rgba(255,255,255,.08);
+      --surface-border: rgba(255,255,255,.10); --surface-shadow: 0 8px 24px rgba(0,0,0,.35);
+      --header-border: rgba(255,255,255,.08); --font: 'Inter', system-ui, sans-serif;
+      color-scheme: dark;
+    }
+    [data-theme="light"] {
+      --bg-grad-1: #eef1fb; --bg-grad-2: #f5f7ff; --bg-grad-3: #e3ecff;
+      --text-primary: #1c2140; --text-secondary: #4b5170; --text-muted: #7a7f9e;
+      --accent-1: #0d9488; --accent-2: #4f46e5;
+      --accent-1-rgb: 13, 148, 136; --accent-2-rgb: 79, 70, 229;
+      --success: #16a34a; --success-rgb: 22, 163, 74;
+      --error: #dc2626; --error-rgb: 220, 38, 38;
+      --warning: #d97706; --warning-rgb: 217, 119, 6;
+      --surface: rgba(255,255,255,.75); --surface-strong: rgba(255,255,255,.95);
+      --surface-border: rgba(28,33,64,.08); --surface-shadow: 0 8px 24px rgba(28,33,64,.10);
+      --header-border: rgba(28,33,64,.08);
+      color-scheme: light;
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font);
+      background: linear-gradient(135deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 50%, var(--bg-grad-3) 100%);
+      background-attachment: fixed;
+      color: var(--text-primary); min-height: 100vh;
+      transition: background .4s ease, color .3s ease;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, rgba(var(--accent-2-rgb),.35) 0%, rgba(var(--accent-1-rgb),.25) 100%);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--header-border);
+      color: var(--text-primary); padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-logo { font-size: 22px; }
+    .header-title { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+    .header-sub { font-size: 11px; opacity: .7; }
+    .header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+    .live-badge {
+      background: var(--surface); border: 1px solid var(--surface-border);
+      border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .live-dot { width: 7px; height: 7px; background: var(--success); border-radius: 50%; animation: blink 1.5s infinite; }
+
+    .theme-toggle {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--surface-border); background: var(--surface);
+      color: var(--text-primary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform .25s ease, border-color .25s ease;
+    }
+    .theme-toggle:hover { transform: scale(1.08); border-color: rgba(var(--accent-1-rgb),.5); }
+    .theme-toggle svg { width: 16px; height: 16px; fill: var(--accent-1); position: absolute; transition: transform .4s cubic-bezier(.34,1.56,.64,1), opacity .25s ease; }
+    [data-theme="dark"] .theme-toggle .icon-sun,
+    :root:not([data-theme]) .theme-toggle .icon-sun { opacity: 0; transform: rotate(-90deg) scale(.5); }
+    [data-theme="dark"] .theme-toggle .icon-moon,
+    :root:not([data-theme]) .theme-toggle .icon-moon { opacity: 1; transform: rotate(0) scale(1); }
+    [data-theme="light"] .theme-toggle .icon-sun { opacity: 1; transform: rotate(0) scale(1); }
+    [data-theme="light"] .theme-toggle .icon-moon { opacity: 0; transform: rotate(90deg) scale(.5); }
+
+    /* ── Main Layout ─────────────────────────────────────── */
+    .main { padding: 28px 32px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Stats Bar ───────────────────────────────────────── */
+    .stats-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--surface-strong); border: 1px solid var(--surface-border);
+      border-radius: 14px; padding: 18px 20px; box-shadow: var(--surface-shadow);
+      animation: cardIn .5s cubic-bezier(.22,1,.36,1) both;
+    }
+    .stat-card:nth-child(2) { animation-delay: .06s; }
+    .stat-card:nth-child(3) { animation-delay: .12s; }
+    .stat-card:nth-child(4) { animation-delay: .18s; }
+    .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-value { font-size: 32px; font-weight: 700; margin-top: 4px; color: var(--text-primary); }
+    .stat-value.pending  { color: var(--warning); }
+    .stat-value.done     { color: var(--success); }
+    .stat-value.total    { color: var(--accent-2); }
+    .stat-value.inprogress { color: var(--accent-2); }
+
+    /* ── Controls ────────────────────────────────────────── */
+    .controls {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+    }
+    .controls h2 { font-size: 16px; font-weight: 700; }
+    .controls-right { display: flex; gap: 10px; align-items: center; }
+    .filter-btn {
+      background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px;
+      padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+      color: var(--text-secondary); transition: all .2s; font-family: var(--font);
+    }
+    .filter-btn.active { background: var(--accent-2); border-color: var(--accent-2); color: white; }
+    .filter-btn:hover:not(.active) { background: var(--surface-strong); color: var(--text-primary); }
+    .refresh-btn {
+      background: var(--accent-2); border: none; border-radius: 20px;
+      padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+      color: white; font-family: var(--font); transition: filter .2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .refresh-btn:hover { filter: brightness(1.1); }
+
+    /* ── Task Table ──────────────────────────────────────── */
+    .table-container { background: var(--surface-strong); border: 1px solid var(--surface-border); border-radius: 14px; overflow: hidden; box-shadow: var(--surface-shadow); animation: cardIn .5s cubic-bezier(.22,1,.36,1) .2s both; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: rgba(var(--accent-2-rgb), .08); }
+    th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--surface-border); }
+    tbody tr { border-bottom: 1px solid var(--surface-border); transition: background .15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(var(--accent-2-rgb), .06); }
+    td { padding: 14px 16px; font-size: 13px; vertical-align: middle; color: var(--text-primary); }
+
+    .token-badge {
+      background: rgba(var(--accent-2-rgb), .12); color: var(--accent-2); border: 1px solid rgba(var(--accent-2-rgb), .3);
+      border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 700; font-family: monospace;
+    }
+    .task-type {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600;
+    }
+    .task-type.FD { background: rgba(var(--accent-2-rgb), .12); color: var(--accent-2); }
+    .task-type.WD { background: rgba(var(--success-rgb), .12); color: var(--success); }
+
+    .status-badge {
+      border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700;
+    }
+    .status-badge.PENDING     { background: rgba(var(--warning-rgb), .16); color: var(--warning); }
+    .status-badge.IN_PROGRESS { background: rgba(var(--accent-2-rgb), .16); color: var(--accent-2); }
+    .status-badge.COMPLETED   { background: rgba(var(--success-rgb), .16); color: var(--success); }
+    .status-badge.CANCELLED   { background: rgba(var(--error-rgb), .16); color: var(--error); }
+
+    .amount { font-weight: 700; font-size: 14px; color: var(--text-primary); }
+
+    .action-btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid; transition: all .2s; font-family: var(--font);
+    }
+    .btn-start { background: rgba(var(--accent-2-rgb), .12); color: var(--accent-2); border-color: rgba(var(--accent-2-rgb), .35); }
+    .btn-start:hover { background: var(--accent-2); color: white; }
+    .btn-done  { background: rgba(var(--success-rgb), .12); color: var(--success); border-color: rgba(var(--success-rgb), .35); }
+    .btn-done:hover { background: var(--success); color: white; }
+    .btn-form { background: transparent; color: var(--accent-2); border-color: var(--surface-border); }
+    .btn-form:hover { background: rgba(var(--accent-2-rgb), .1); }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    .config-bar {
+      background: rgba(var(--warning-rgb), .08); border: 1px solid rgba(var(--warning-rgb), .25); border-radius: 10px;
+      padding: 10px 16px; margin-bottom: 20px; font-size: 12px; color: var(--text-primary);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .config-bar input { flex: 1; min-width: 200px; border: 1px solid var(--surface-border); background: var(--surface); color: var(--text-primary); border-radius: 6px; padding: 6px 10px; font-family: monospace; font-size: 12px; }
+    .config-bar button { background: var(--accent-2); color: white; border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 12px; font-family: var(--font); }
+
+    .alert { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+    .alert-success { background: rgba(var(--success-rgb), .14); color: var(--success); }
+    .alert-error   { background: rgba(var(--error-rgb), .14); color: var(--error); }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface-strong); color: var(--text-primary); border: 1px solid var(--surface-border);
+      padding: 12px 20px; border-radius: 10px; font-size: 13px; box-shadow: var(--surface-shadow);
+      animation: slide-in .3s ease; z-index: 999;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+    @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stat-card, .table-container, .toast { animation: none !important; opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">🏦</div>
+      <div>
+        <div class="header-title">Sahayak — Teller Dashboard</div>
+        <div class="header-sub">AI Agent Hand-off Queue</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+      <span id="last-refresh" style="font-size:11px;opacity:.7;">Loading…</span>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zm0-5a1 1 0 011 1v2a1 1 0 11-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zM3 11a1 1 0 000 2h2a1 1 0 100-2H3zm18 0a1 1 0 000 2h2a1 1 0 100-2h-2zM4.22 4.22a1 1 0 011.42 0L7.05 5.64a1 1 0 11-1.42 1.42L4.22 5.64a1 1 0 010-1.42zm14.14 14.14a1 1 0 011.42 0l1.41 1.42a1 1 0 11-1.41 1.41l-1.42-1.41a1 1 0 010-1.42zM4.22 19.78a1 1 0 010-1.42l1.41-1.41a1 1 0 111.42 1.41l-1.42 1.42a1 1 0 01-1.41 0zM18.36 5.64a1 1 0 010-1.42l1.42-1.41a1 1 0 111.41 1.41l-1.41 1.42a1 1 0 01-1.42 0z"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Config Bar -->
+    <div class="config-bar">
+      <span>⚙️ <strong>API URL:</strong></span>
+      <input type="text" id="api-url" placeholder="https://xxxx.execute-api.ap-south-1.amazonaws.com/Prod" />
+      <button onclick="saveApiUrl()">Connect</button>
+      <span id="api-status" style="color:var(--success);"></span>
+    </div>
+
+    <!-- Alert Area -->
+    <div id="alert-area"></div>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value pending" id="stat-pending">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value inprogress" id="stat-inprogress">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Completed Today</div>
+        <div class="stat-value done" id="stat-done">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Tasks</div>
+        <div class="stat-value total" id="stat-total">—</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <h2>Hand-off Task Queue</h2>
+      <div class="controls-right">
+        <button class="filter-btn active" onclick="setFilter('PENDING')">Pending</button>
+        <button class="filter-btn" onclick="setFilter('IN_PROGRESS')">In Progress</button>
+        <button class="filter-btn" onclick="setFilter('COMPLETED')">Completed</button>
+        <button class="filter-btn" onclick="setFilter('ALL')">All</button>
+        <button class="refresh-btn" onclick="loadTasks()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Type</th>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Details</th>
+            <th>Raised At</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tasks-tbody">
+          <tr>
+            <td colspan="8">
+              <div class="empty-state">
+                <div class="icon">⏳</div>
+                <p>Loading tasks…</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // ── Theme toggle ──────────────────────────────────────────────────────
+    (function initTheme() {
+      const toggleBtn = document.getElementById('theme-toggle');
+      if (!toggleBtn) return;
+      toggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('sahayakTheme', next); } catch (e) {}
+      });
+    })();
+
+    const CONFIG_KEY = "sahayak_api_url";
+    let API_BASE = localStorage.getItem(CONFIG_KEY) || "";
+    let currentFilter = "PENDING";
+    let allTasks = [];
+
+    // ── Init ────────────────────────────────────────────────────────────
+    window.onload = () => {
+      document.getElementById("api-url").value = API_BASE;
+      if (API_BASE) {
+        document.getElementById("api-status").textContent = "✅ Connected";
+        loadTasks();
+        setInterval(loadTasks, 30000); // Auto-refresh every 30s
+      }
+    };
+
+    function saveApiUrl() {
+      API_BASE = document.getElementById("api-url").value.trim().replace(/\/$/, "");
+      localStorage.setItem(CONFIG_KEY, API_BASE);
+      document.getElementById("api-status").textContent = "✅ Connected";
+      loadTasks();
+      setInterval(loadTasks, 30000);
+    }
+
+    // ── Load Tasks ───────────────────────────────────────────────────────
+    async function loadTasks() {
+      if (!API_BASE) return;
+      try {
+        const statuses = currentFilter === "ALL"
+          ? ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
+          : [currentFilter];
+
+        const responses = await Promise.all(
+          statuses.map(s => fetch(`${API_BASE}/dashboard/tasks?status=${s}`).then(r => r.json()))
+        );
+
+        allTasks = responses.flatMap(r => r.tasks || [])
+          .sort((a, b) => b.createdAt - a.createdAt);
+
+        updateStats(allTasks);
+        renderTasks(allTasks);
+        document.getElementById("last-refresh").textContent =
+          "Updated: " + new Date().toLocaleTimeString("en-IN");
+      } catch (e) {
+        showAlert("error", "Failed to fetch tasks: " + e.message);
+      }
+    }
+
+    // ── Stats ────────────────────────────────────────────────────────────
+    function updateStats(tasks) {
+      document.getElementById("stat-pending").textContent    = tasks.filter(t => t.status === "PENDING").length;
+      document.getElementById("stat-inprogress").textContent = tasks.filter(t => t.status === "IN_PROGRESS").length;
+      document.getElementById("stat-done").textContent       = tasks.filter(t => t.status === "COMPLETED").length;
+      document.getElementById("stat-total").textContent      = tasks.length;
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────
+    function renderTasks(tasks) {
+      const tbody = document.getElementById("tasks-tbody");
+      if (!tasks.length) {
+        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">✅</div><p>No tasks with this status.</p></div></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = tasks.map(task => {
+        const isWD = task.type === "CASH_WITHDRAWAL";
+        const typeClass = isWD ? "WD" : "FD";
+        const typeLabel = isWD ? "💵 Withdrawal" : "📄 FD Deposit";
+        const details   = isWD
+          ? `Acct: ...${(task.accountId || "").slice(-4)}`
+          : `Tenure: ${task.data?.tenureMonths || task.tenureMonths || "—"} mo`;
+
+        const raisedAt = task.createdAt
+          ? new Date(task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })
+          : "—";
+
+        const formLink = task.presignedUrl
+          ? `<button class="action-btn btn-form" onclick="window.open('${task.presignedUrl}','_blank')">📄 Form</button>`
+          : "";
+
+        const actionBtns = task.status === "PENDING"
+          ? `<button class="action-btn btn-start" onclick="updateStatus('${task.taskId}', 'IN_PROGRESS')">▶ Start</button>${formLink}`
+          : task.status === "IN_PROGRESS"
+          ? `<button class="action-btn btn-done" onclick="updateStatus('${task.taskId}', 'COMPLETED')">✓ Done</button>${formLink}`
+          : formLink || "—";
+
+        return `
+          <tr>
+            <td><span class="token-badge">${task.counterToken || "—"}</span></td>
+            <td><span class="task-type ${typeClass}">${typeLabel}</span></td>
+            <td>
+              <div style="font-weight:600;">${task.customerName || task.customerId || "—"}</div>
+              <div style="font-size:11px;color:var(--text-muted);">${task.customerId || ""}</div>
+            </td>
+            <td><span class="amount">₹${((task.amount || task.data?.amount || 0)).toLocaleString("en-IN")}</span></td>
+            <td style="font-size:12px;color:var(--text-secondary);">${details}</td>
+            <td style="font-size:12px;">${raisedAt}</td>
+            <td><span class="status-badge ${task.status}">${task.status.replace("_"," ")}</span></td>
+            <td><div class="actions">${actionBtns}</div></td>
+          </tr>`;
+      }).join("");
+    }
+
+    // ── Update Status ────────────────────────────────────────────────────
+    async function updateStatus(taskId, newStatus) {
+      try {
+        const res = await fetch(`${API_BASE}/dashboard/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus, tellerName: "Teller 1" })
+        });
+        if (!res.ok) throw new Error("Update failed");
+        showToast(`Task marked as ${newStatus.replace("_"," ")}`);
+        loadTasks();
+      } catch (e) {
+        showAlert("error", "Failed to update: " + e.message);
+      }
+    }
+
+    // ── Filter ───────────────────────────────────────────────────────────
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll(".filter-btn").forEach(b => {
+        b.classList.toggle("active", b.textContent.trim().toUpperCase().replace(" ","_") === f || (f === "ALL" && b.textContent.includes("All")));
+      });
+      loadTasks();
+    }
+
+    // ── Alerts & Toast ───────────────────────────────────────────────────
+    function showAlert(type, msg) {
+      const el = document.getElementById("alert-area");
+      el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+      setTimeout(() => { el.innerHTML = ""; }, 4000);
+    }
+
+    function showToast(msg) {
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+  </script>
+</body>
+</html>

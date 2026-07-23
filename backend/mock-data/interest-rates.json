@@ -1,0 +1,15 @@
+{
+  "slabs": [
+    { "minMonths": 7,  "maxMonths": 11,  "rate": 4.50 },
+    { "minMonths": 12, "maxMonths": 17,  "rate": 6.50 },
+    { "minMonths": 18, "maxMonths": 23,  "rate": 7.00 },
+    { "minMonths": 24, "maxMonths": 35,  "rate": 7.00 },
+    { "minMonths": 36, "maxMonths": 47,  "rate": 7.10 },
+    { "minMonths": 48, "maxMonths": 59,  "rate": 7.10 },
+    { "minMonths": 60, "maxMonths": 120, "rate": 6.50 }
+  ],
+  "seniorCitizenBonusRate": 0.50,
+  "minAmount": 1000,
+  "maxAmount": 10000000,
+  "currency": "INR"
+}

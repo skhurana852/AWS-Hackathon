@@ -1,0 +1,38 @@
+[
+  {
+    "customerId": "C1001",
+    "aadhaarLast4": "7001",
+    "fullName": "Suresh Kumar",
+    "maskedName": "S. Kumar",
+    "pan": "ABCPK1234Z",
+    "mobile": "7015541479",
+    "email": "suresh.kumar@example.com",
+    "dob": "1980-05-15",
+    "demoOtp": "482913",
+    "accounts": ["ACC001", "ACC002"]
+  },
+  {
+    "customerId": "C1002",
+    "aadhaarLast4": "5678",
+    "fullName": "Priya Sharma",
+    "maskedName": "P. Sharma",
+    "pan": "DEFPS5678Y",
+    "mobile": "9123456789",
+    "email": "priya.sharma@example.com",
+    "dob": "1992-11-22",
+    "demoOtp": "193847",
+    "accounts": ["ACC003"]
+  },
+  {
+    "customerId": "C1003",
+    "aadhaarLast4": "9012",
+    "fullName": "Ramesh Patel",
+    "maskedName": "R. Patel",
+    "pan": "GHIRP9012X",
+    "mobile": "9988776655",
+    "email": "ramesh.patel@example.com",
+    "dob": "1975-03-08",
+    "demoOtp": "567291",
+    "accounts": ["ACC004", "ACC005"]
+  }
+]
