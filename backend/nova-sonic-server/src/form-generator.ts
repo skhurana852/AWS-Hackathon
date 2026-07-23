@@ -85,7 +85,7 @@ function generateFdFormHtml(customer: FormCustomer, data: any, refNo: string): s
   const paymentMode = isManual ? 'Cash at Counter' : 'Debited from Account';
 
   const tellerBlock = isManual
-    ? `<p style="margin-top:30px;"><strong>Instructions for Teller:</strong> Collect ${inr(data.amount)} cash from the customer, verify PAN, and complete FD booking in CBS.</p>
+    ? `<p style="margin-top:30px;"><strong>Instructions for Teller:</strong> Collect ${inr(data.amount)} cash from the customer and complete FD booking in CBS.</p>
        <p><strong>Counter Token:</strong> <span class="token">${data.counterToken || '—'}</span></p>`
     : `<p style="margin-top:30px;"><strong>Status:</strong> Your Fixed Deposit has been booked successfully and the amount debited from account ${data.debitedFrom || '—'}.</p>`;
 
@@ -124,7 +124,6 @@ function generateFdFormHtml(customer: FormCustomer, data: any, refNo: string): s
   <table>
     <tr><td>Customer Name</td><td>${customer.maskedName || customer.fullName || '—'}</td></tr>
     <tr><td>Customer ID</td><td>${customer.customerId}</td></tr>
-    <tr><td>PAN Number</td><td>${data.pan || '—'}</td></tr>
     <tr><td>Deposit Amount</td><td>${inr(data.amount)}</td></tr>
     <tr><td>Tenure</td><td>${data.tenureMonths || '—'} months</td></tr>
     <tr><td>Interest Rate</td><td>${data.rate || '—'}% per annum</td></tr>

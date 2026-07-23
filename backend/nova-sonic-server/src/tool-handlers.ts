@@ -100,8 +100,7 @@ function generateFdForm(customer: Customer | undefined, data: any) {
     const form = saveForm('FD_REQUEST', data, {
       customerId: customer?.customerId || data.customerId || '—',
       maskedName: customer?.maskedName,
-      fullName: customer?.fullName,
-      pan: data.pan
+      fullName: customer?.fullName
     });
     console.log(`[Form] ✅ FD form generated | ref=${form.refNo} | url=${form.url} | file=${form.filePath}`);
     return form;
@@ -263,8 +262,8 @@ export async function handleCheckBalance(input: any, sessionState: SessionState)
   };
 }
 
-export async function handleGetFdQuote(input: any): Promise<any> {
-  const { amount, tenureMonths } = input;
+export async function handleGetFdQuote(input: any, sessionState?: SessionState): Promise<any> {
+  const { amount, tenureMonths, fundingRoute } = input;
 
   if (!amount || !tenureMonths) {
     return { error: "amount and tenureMonths are required." };
@@ -274,6 +273,26 @@ export async function handleGetFdQuote(input: any): Promise<any> {
   }
   if (tenureMonths < 7 || tenureMonths > 120) {
     return { error: "Tenure must be between 7 and 120 months." };
+  }
+
+  // When the FD is funded from the account balance, validate the customer has
+  // enough money before quoting.
+  const route = String(fundingRoute || input.route || "").toUpperCase();
+  if (route === "DIGITAL") {
+    const customerId = sessionState?.customerId || input.customerId;
+    const { accountId } = input;
+    const sourceAccount = accountId
+      ? accounts.find(a => a.accountId === accountId && a.customerId === customerId)
+      : accounts.find(a => a.customerId === customerId && a.type === 'SAVINGS');
+    if (sourceAccount && sourceAccount.balance < amount) {
+      return {
+        error: "insufficient_balance",
+        insufficientBalance: true,
+        accountId: sourceAccount.accountId,
+        availableBalance: sourceAccount.balance,
+        message: `You don't have enough money in that account for a Fixed Deposit of ₹${amount}. Your available balance is ₹${sourceAccount.balance}. Please choose a smaller amount.`
+      };
+    }
   }
 
   const rate = getFdRate(tenureMonths);
@@ -298,7 +317,7 @@ export async function handleGetFdQuote(input: any): Promise<any> {
 }
 
 export async function handleBookFd(input: any, sessionState: SessionState): Promise<any> {
-  const { customerId, pan, amount, tenureMonths, route } = input;
+  const { customerId, amount, tenureMonths, route, accountId } = input;
 
   if (!sessionState.authenticated) {
     return { error: "Please authenticate first." };
@@ -306,8 +325,8 @@ export async function handleBookFd(input: any, sessionState: SessionState): Prom
   if (customerId !== sessionState.customerId) {
     return { error: "You can only book FDs for your own account." };
   }
-  if (!pan || !amount || !tenureMonths || !route) {
-    return { error: "pan, amount, tenureMonths, and route (DIGITAL|MANUAL) are all required." };
+  if (!amount || !tenureMonths || !route) {
+    return { error: "amount, tenureMonths, and route (DIGITAL|MANUAL) are all required." };
   }
   if (!["DIGITAL", "MANUAL"].includes(route)) {
     return { error: "route must be DIGITAL or MANUAL." };
@@ -325,30 +344,32 @@ export async function handleBookFd(input: any, sessionState: SessionState): Prom
   const customer = customers.find(c => c.customerId === customerId);
 
   if (route === "DIGITAL") {
-    // Find primary account and debit
-    const primaryAccount = accounts.find(a => a.customerId === customerId && a.type === 'SAVINGS');
-    if (!primaryAccount) {
-      return { error: "No savings account found to debit." };
+    // Find the account the customer chose (else primary savings) and debit it
+    const sourceAccount = accountId
+      ? accounts.find(a => a.accountId === accountId && a.customerId === customerId)
+      : accounts.find(a => a.customerId === customerId && a.type === 'SAVINGS');
+    if (!sourceAccount) {
+      return { error: "The selected account could not be found to debit." };
     }
-    if (primaryAccount.balance < amount) {
-      return { error: `Insufficient balance. Available: ₹${primaryAccount.balance}` };
+    if (sourceAccount.balance < amount) {
+      return { error: `Insufficient balance. Available: ₹${sourceAccount.balance}` };
     }
 
     // Mock debit
-    primaryAccount.balance -= amount;
+    sourceAccount.balance -= amount;
 
     const digitalForm = generateFdForm(customer, {
-      route: "DIGITAL", pan, amount, tenureMonths, rate,
+      route: "DIGITAL", amount, tenureMonths, rate,
       maturityAmount, maturityDate, fdRefNo,
-      debitedFrom: primaryAccount.accountId
+      debitedFrom: sourceAccount.accountId
     });
 
     return {
       success: true,
       fdRefNo,
       route: "DIGITAL",
-      debitedFrom: primaryAccount.accountId,
-      newBalance: primaryAccount.balance,
+      debitedFrom: sourceAccount.accountId,
+      newBalance: sourceAccount.balance,
       principal: amount,
       tenureMonths,
       rate,
@@ -364,7 +385,7 @@ export async function handleBookFd(input: any, sessionState: SessionState): Prom
   const counterToken = generateRef("TKN");
 
   const manualForm = generateFdForm(customer, {
-    route: "MANUAL", pan, amount, tenureMonths, rate,
+    route: "MANUAL", amount, tenureMonths, rate,
     maturityAmount, maturityDate, fdRefNo, counterToken
   });
 
@@ -500,7 +521,7 @@ export async function processToolUse(
       return handleCheckBalance(parsedInput, sessionState);
 
     case "getFdQuoteTool":
-      return handleGetFdQuote(parsedInput);
+      return handleGetFdQuote(parsedInput, sessionState);
 
     case "bookFdTool":
       return handleBookFd(parsedInput, sessionState);

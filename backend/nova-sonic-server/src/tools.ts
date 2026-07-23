@@ -60,7 +60,7 @@ export const BankingTools: ToolSpec[] = [
   },
   {
     name: "getFdQuoteTool",
-    description: "Get a Fixed Deposit quote with interest rate and maturity details. Use this to show the customer what they would earn before booking.",
+    description: "Get a Fixed Deposit quote with interest rate and maturity details. Use this to show the customer what they would earn before booking. When the FD is funded from the account balance (fundingRoute DIGITAL), this also validates that the customer has enough balance and returns an insufficient-balance error if they do not.",
     inputSchema: {
       json: JSON.stringify({
         type: "object",
@@ -72,6 +72,19 @@ export const BankingTools: ToolSpec[] = [
           tenureMonths: {
             type: "number",
             description: "The tenure in months (7 to 120 months)"
+          },
+          fundingRoute: {
+            type: "string",
+            enum: ["DIGITAL", "MANUAL"],
+            description: "DIGITAL if the FD is funded from the account balance, MANUAL if funded with cash at the counter. When DIGITAL, the quote validates the chosen account's available balance."
+          },
+          customerId: {
+            type: "string",
+            description: "The authenticated customer's ID. Required when fundingRoute is DIGITAL so the balance can be validated."
+          },
+          accountId: {
+            type: "string",
+            description: "The account the customer chose to fund the FD from. Required when fundingRoute is DIGITAL. If omitted, the primary savings account is used."
           }
         },
         required: ["amount", "tenureMonths"]
@@ -80,7 +93,7 @@ export const BankingTools: ToolSpec[] = [
   },
   {
     name: "bookFdTool",
-    description: "Book a Fixed Deposit for an authenticated customer. Requires all details including PAN and funding route. Only use after customer confirms the FD quote.",
+    description: "Book a Fixed Deposit for an authenticated customer. Requires amount, tenure, and funding route. Only use after customer confirms the FD quote. Do NOT ask for or pass a PAN number.",
     inputSchema: {
       json: JSON.stringify({
         type: "object",
@@ -88,10 +101,6 @@ export const BankingTools: ToolSpec[] = [
           customerId: {
             type: "string",
             description: "The authenticated customer's ID"
-          },
-          pan: {
-            type: "string",
-            description: "The customer's PAN number (e.g., ABCPK1234Z)"
           },
           amount: {
             type: "number",
@@ -105,9 +114,13 @@ export const BankingTools: ToolSpec[] = [
             type: "string",
             enum: ["DIGITAL", "MANUAL"],
             description: "DIGITAL to debit from account, MANUAL for cash deposit at counter"
+          },
+          accountId: {
+            type: "string",
+            description: "The account to debit for the FD. Required when route is DIGITAL. If omitted, the primary savings account is used."
           }
         },
-        required: ["customerId", "pan", "amount", "tenureMonths", "route"]
+        required: ["customerId", "amount", "tenureMonths", "route"]
       })
     }
   },
