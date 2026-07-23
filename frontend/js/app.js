@@ -63,6 +63,10 @@ let pendingCardTarget = null;
 // here and flushed to the backend once 'audioReady' arrives.
 let pendingTextMessage = null;
 
+// ─── Language selection (start screen) ─────────────────────────────────────
+let selectedLanguage = null;   // 'en' | 'hi' — picked on the language overlay
+let pendingAutoStart = false;  // set when the socket wasn't connected yet at pick time
+
 const TOOL_LABELS = {
     verifyAadhaarTool: 'Verifying identity',
     verifyOtpTool: 'Verifying OTP',
@@ -103,6 +107,11 @@ function initSocket() {
         setChatEnabled(true);
         setConnectionState(false);
         setStatus('Tap microphone to start conversation', '');
+
+        if (pendingAutoStart) {
+            pendingAutoStart = false;
+            startConversation();
+        }
     });
 
     socket.on('disconnect', (reason) => {
@@ -142,14 +151,33 @@ function initSocket() {
         isStreaming = true;
         sessionEndedAnnounced = false;
         setConnectionState(true);
-        setStatus('🎤 Listening — say hello or ask about your account', 'active');
-        showTyping('user');
+
+        // When a hidden SESSION_START kickoff is queued (auto-greet right after
+        // language pick), it's the AGENT's turn first, not the customer's — don't
+        // show the "listening" mic animation or a "You…" typing bubble, since the
+        // customer hasn't said anything yet and isn't expected to until the agent
+        // finishes greeting them.
+        const isKickoff = !!(pendingTextMessage && pendingTextMessage.startsWith('SESSION_START:'));
+        if (isKickoff) {
+            setMicState('speaking');
+            setStatus('🔊 Connecting you to Bank Genie...', 'connected');
+        } else {
+            setStatus('🎤 Listening — say hello or ask about your account', 'active');
+            showTyping('user');
+        }
+
         startAudioCapture();
         flushPendingTextMessage();
     });
 
+    // Bedrock's response stream keeps flushing whatever Nova Sonic already had
+    // in flight for a moment after we ask the server to close the session (e.g.
+    // the user tapped "end call" mid-reply). Guard every transient rendering
+    // handler below with `isStreaming` so those late/orphaned events — which
+    // would otherwise reopen a typing bubble no one ever finalizes — are dropped
+    // once the session is no longer active on this client.
     socket.on('contentStart', (data) => {
-        if (!data) return;
+        if (!isStreaming || !data) return;
         if (data.type === 'TEXT') {
             const role = (data.role || 'ASSISTANT').toLowerCase() === 'user' ? 'user' : 'agent';
             showTyping(role);
@@ -157,23 +185,11 @@ function initSocket() {
     });
 
     socket.on('textOutput', (data) => {
-        if (!data || !data.content) return;
+        if (!isStreaming || !data || !data.content) return;
         if (isControlSignal(data.content)) {
             // Nova Sonic sends control markers (e.g. `{"interrupted":true}` on barge-in)
             // through the same textOutput channel as real transcript — don't render these.
             console.log('[Socket] Control signal:', data.content);
-            // On barge-in the model stops generating and tells us it was interrupted.
-            // Immediately flush any audio still queued/playing so the agent goes quiet
-            // and the customer's new turn takes over cleanly.
-            if (isInterruptSignal(data.content)) {
-                console.log('[Socket] Interruption confirmed by model — flushing playback');
-                stopAllScheduledSources();
-                finalizeStream('agent');
-                if (isStreaming) {
-                    setMicState('listening');
-                    setStatus('🎤 Listening — say hello or ask about your account', 'active');
-                }
-            }
             return;
         }
         const role = (data.role || 'ASSISTANT').toLowerCase() === 'user' ? 'user' : 'agent';
@@ -181,7 +197,7 @@ function initSocket() {
     });
 
     socket.on('audioOutput', (data) => {
-        if (!data || !data.content) return;
+        if (!isStreaming || !data || !data.content) return;
         if (!isPlaying && scheduledSources.size === 0) {
             pendingAgentGap = true;
         }
@@ -194,6 +210,7 @@ function initSocket() {
     });
 
     socket.on('contentEnd', (data) => {
+        if (!isStreaming) return;
         if (data && data.type === 'TEXT') {
             finalizeStream('user');
             finalizeStream('agent');
@@ -201,6 +218,7 @@ function initSocket() {
     });
 
     socket.on('toolUse', (data) => {
+        if (!isStreaming) return;
         console.log('[Socket] Tool invoked:', data && data.toolName);
         finalizeAllStreams();
         removeTyping('user');
@@ -211,6 +229,7 @@ function initSocket() {
     });
 
     socket.on('toolResult', (data) => {
+        if (!isStreaming) return;
         console.log('[Socket] Tool result:', data && data.toolName);
         resolveToolChip(data.toolName, data.result);
         queueToolResultCard(data.toolName, data.result);
@@ -287,7 +306,7 @@ function startConversation() {
     socket.emit('initializeConnection', (response) => {
         if (response && response.success) {
             console.log('[App] Connection initialized, starting prompt...');
-            socket.emit('promptStart', {});
+            socket.emit('promptStart', { language: selectedLanguage });
             if (micBtn) micBtn.disabled = false;
         } else {
             console.error('[App] Failed to initialize:', response && response.error);
@@ -411,11 +430,8 @@ async function startAudioCapture() {
                 bargeInFrames = 0;
             }
 
-            // Full-duplex: keep streaming mic audio even while the agent is speaking.
-            // This is what lets Nova Sonic actually HEAR the customer talk over it,
-            // detect the barge-in server-side, stop generating, and emit an
-            // {"interrupted":true} signal. Browser echoCancellation + the barge-in
-            // energy threshold keep the agent's own voice from self-interrupting.
+            // Half-duplex: don't send mic audio while the agent is speaking
+            if (isPlaying) return;
 
             let pcmData;
             if (actualSampleRate !== INPUT_SAMPLE_RATE) {
@@ -1021,20 +1037,6 @@ function isControlSignal(text) {
     }
 }
 
-// True only for the specific barge-in marker `{"interrupted":true}` — the cue to
-// stop the agent's audio immediately so the customer can take over the turn.
-function isInterruptSignal(text) {
-    if (typeof text !== 'string') return false;
-    const trimmed = text.trim();
-    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
-    try {
-        const parsed = JSON.parse(trimmed);
-        return !!parsed && typeof parsed === 'object' && parsed.interrupted === true;
-    } catch (e) {
-        return false;
-    }
-}
-
 // ─── Audio / byte utilities ──────────────────────────────────────────────────
 function float32ToInt16(float32Array) {
     const int16Array = new Int16Array(float32Array.length);
@@ -1072,10 +1074,55 @@ function arrayBufferToBase64(buffer) {
     return btoa(binary);
 }
 
+// ─── Language selector (shown first, before the intro animation) ───────────
+function initLanguageSelect() {
+    const overlay = document.getElementById('lang-overlay');
+    if (!overlay) {
+        // No overlay in the DOM — fall back to the old English-only flow.
+        selectedLanguage = 'en';
+        initIntroAnimation();
+        return;
+    }
+
+    const options = overlay.querySelectorAll('.lang-option');
+    options.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const lang = btn.getAttribute('data-lang') === 'hi' ? 'hi' : 'en';
+            options.forEach((b) => b.classList.toggle('selected', b === btn));
+            selectLanguage(lang, overlay);
+        }, { once: false });
+    });
+}
+
+function selectLanguage(lang, overlay) {
+    selectedLanguage = lang;
+
+    overlay.classList.add('lang-overlay-hidden');
+    setTimeout(() => overlay.remove(), 500);
+
+    initIntroAnimation();
+    beginAutoSession(lang);
+}
+
+// Auto-connect to Nova Sonic right after language pick (no mic tap needed) and
+// queue a hidden kickoff trigger so the agent greets the customer, in the chosen
+// language, as its very first turn — no separately-authored welcome text needed,
+// since Nova's own generated reply becomes the one real "Agent" bubble (and voice).
+// Reuses the existing pendingTextMessage/flushPendingTextMessage mechanism, which
+// never echoes a "You:" bubble for it.
+function beginAutoSession(lang) {
+    pendingTextMessage = 'SESSION_START:' + lang;
+
+    if (socketConnected) {
+        startConversation();
+    } else {
+        pendingAutoStart = true;
+    }
+}
+
 // ─── Page intro: mic drop → welcome ──────────────────────────────────────────
 function initIntroAnimation() {
     const micWrap = document.getElementById('mic-wrap');
-    const welcomeMsg = document.getElementById('welcome-msg');
     const statusText = document.getElementById('status-text');
     const connectionIndicator = document.getElementById('connection-indicator');
     const chatInput = document.getElementById('chat-input');
@@ -1098,12 +1145,6 @@ function initIntroAnimation() {
 
         setTimeout(() => reveal(statusText), 200);
         setTimeout(() => reveal(waveform), 300);
-        setTimeout(() => {
-            if (welcomeMsg) {
-                welcomeMsg.classList.remove('intro-hidden');
-                welcomeMsg.classList.add('message-enter-agent');
-            }
-        }, 550);
         setTimeout(() => reveal(connectionIndicator), 800);
         setTimeout(() => reveal(chatInput), 950);
     };
@@ -1112,7 +1153,6 @@ function initIntroAnimation() {
     if (reducedMotion) {
         micWrap.classList.remove('intro-drop');
         onMicLanded();
-        if (welcomeMsg) welcomeMsg.classList.add('message-enter-agent');
         return;
     }
 
@@ -1128,8 +1168,8 @@ function initIntroAnimation() {
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
-    initIntroAnimation();
     initSocket();
+    initLanguageSelect();
 
     const micBtn = document.getElementById('mic-btn');
     if (micBtn) micBtn.addEventListener('click', toggleConversation);

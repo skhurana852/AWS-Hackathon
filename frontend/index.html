@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sahayak — AI Banking Agent</title>
+    <title>Bank Genie</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="assets/favicon.png">
     <script>
         // Set theme before first paint to avoid a flash of the wrong theme.
         (function () {
@@ -21,6 +23,16 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div class="lang-overlay" id="lang-overlay">
+        <div class="lang-card">
+            <h2 class="lang-card-title">Choose your language<br><span class="lang-card-sub">अपनी भाषा चुनें</span></h2>
+            <div class="lang-options">
+                <button class="lang-option" data-lang="en" type="button">English</button>
+                <button class="lang-option" data-lang="hi" type="button">हिंदी</button>
+            </div>
+        </div>
+    </div>
+
     <div class="call-timer" id="call-timer">
         <span class="call-timer-dot"></span>
         <span id="call-timer-value">00:00</span>
@@ -57,12 +69,7 @@
             </div>
         </div>
 
-        <div class="chat-area" id="chat-area">
-            <div class="message agent welcome-msg intro-hidden" id="welcome-msg">
-                <div class="label">Agent</div>
-                <span class="text-body">Welcome! I'm Bank Genie, your AI banking assistant. Tap the microphone and I can help you check your balance, withdraw money, or open a fixed deposit.</span>
-             </div>
-        </div>
+        <div class="chat-area" id="chat-area"></div>
 
         <div class="controls controls-intro" id="controls">
             <div class="waveform intro-hidden" id="waveform">

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+    <defs>
+        <linearGradient id="brandGradFavicon" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#14b8a6" />
+            <stop offset="100%" stop-color="#6366f1" />
+        </linearGradient>
+    </defs>
+    <circle cx="24" cy="24" r="22" fill="url(#brandGradFavicon)" />
+    <path fill="#fff" fill-opacity="0.96" d="M15 28c-5-1-7-5-5-9 2 3 5 6 8 7z" />
+    <ellipse fill="#fff" fill-opacity="0.96" cx="23" cy="28" rx="8" ry="5.2" />
+    <path fill="#fff" fill-opacity="0.96" d="M17 23q6-8 12 0z" />
+    <circle fill="#fff" fill-opacity="0.96" cx="23" cy="14" r="1.8" />
+    <circle fill="none" stroke="#fff" stroke-opacity="0.96" stroke-width="1.6" cx="32" cy="26" r="3.2" />
+    <path fill="#fff" d="M0 -6c1 4 2 5 6 6-4 1-5 2-6 6-1-4-2-5-6-6 4-1 5-2 6-6z" transform="translate(36,13) scale(0.55)" />
+    <path fill="#fff" d="M0 -6c1 4 2 5 6 6-4 1-5 2-6 6-1-4-2-5-6-6 4-1 5-2 6-6z" transform="translate(39,21) scale(0.35)" />
+</svg>
